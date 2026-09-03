@@ -29,6 +29,11 @@
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230d9488'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-family='system-ui,sans-serif' font-weight='700'>M</text></svg>" />
   <link rel="manifest" id="pwa-manifest" />
   <style>
+    /* Saved-test confirmation popup */
+    #delete-test-modal { display:none; position:fixed; inset:0; z-index:1000; background:rgba(15,23,42,.42); align-items:center; justify-content:center; padding:20px; }
+    #delete-test-modal.open { display:flex; }
+    #delete-test-modal .modal-card { background:#fff; box-shadow:0 18px 50px rgba(15,23,42,.22); }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --primary: #0d9488; --primary-dark: #0f766e; --primary-light: #ccfbf1;
@@ -41,6 +46,30 @@
     }
     body { display: flex; justify-content: center; min-height: 100vh; }
     .app { width: 100%; max-width: 430px; min-height: 100vh; background: var(--bg); position: relative; overflow-x: hidden; }
+    /* Personal profile + settings */
+    .profile-avatar { position:relative; overflow:hidden; }
+    .profile-avatar img { width:100%; height:100%; object-fit:cover; display:block; }
+    .avatar.has-photo { overflow:hidden; }
+    .avatar img { width:100%; height:100%; object-fit:cover; display:block; border-radius:50%; }
+    .settings-option { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 0; border-bottom:1px solid var(--border); }
+    .settings-option:last-child { border-bottom:0; }
+    .settings-label { font-size:14px; font-weight:600; }
+    .settings-help { font-size:11px; color:var(--text-secondary); margin-top:3px; line-height:1.35; }
+    .theme-choice { display:flex; gap:5px; padding:4px; border:1px solid var(--border); border-radius:11px; background:var(--bg); }
+    .theme-choice button { border:0; background:transparent; color:var(--text-secondary); border-radius:8px; padding:7px 9px; font-size:11px; cursor:pointer; }
+    .theme-choice button.active { background:var(--card); color:var(--primary); font-weight:700; box-shadow:var(--shadow); }
+    .toggle { width:42px; height:24px; border-radius:20px; background:#cbd5e1; border:0; padding:2px; cursor:pointer; transition:.2s; }
+    .toggle::after { content:''; display:block; width:20px; height:20px; border-radius:50%; background:#fff; transition:.2s; }
+    .toggle.on { background:var(--primary); }
+    .toggle.on::after { transform:translateX(18px); }
+    body.dark-mode { --bg:#0f172a; --card:#111827; --text:#e5e7eb; --text-secondary:#94a3b8; --border:#334155; --primary-light:#134e4a; --shadow:0 4px 16px rgba(0,0,0,.22); }
+    body.dark-mode .icon-btn, body.dark-mode .bottom-nav, body.dark-mode .test-action-bar, body.dark-mode .test-panel, body.dark-mode .modal-box, body.dark-mode #delete-test-modal .modal-card { background:var(--card); color:var(--text); }
+    body.dark-mode .profile-stat { background:var(--card); }
+    body.dark-mode .modal-box input, body.dark-mode .modal-box textarea, body.dark-mode .modal-box select { background:#0f172a; color:var(--text); }
+    body.dark-mode .theme-choice button.active { background:#1e293b; }
+    body.dark-mode .conf-chip, body.dark-mode .bm-inline { background:var(--card); color:var(--text); }
+    .reduced-motion *, .reduced-motion *::before, .reduced-motion *::after { animation-duration:0.01ms !important; transition-duration:0.01ms !important; scroll-behavior:auto !important; }
+
 
     .page { display: none; padding: 20px 18px 100px; min-height: 100vh; animation: fadeIn 0.25s ease; }
     .page.active { display: block; }
@@ -562,14 +591,14 @@
       <header class="header">
         <div>
           <h1 class="logo">Med MCQ</h1>
-          <p class="greeting">Assalamu Alaikum, Mehedi 👋</p>
+          <p class="greeting" id="home-greeting">Assalamu Alaikum, Mehedi 👋</p>
           <h2 class="tagline">Ready for today's revision?</h2>
         </div>
         <div class="header-actions">
           <button class="icon-btn" onclick="showToast('No new notifications')" title="Notifications">
             🔔<span class="badge"></span>
           </button>
-          <div class="avatar" onclick="goTo('profile')" title="Profile">M</div>
+          <div class="avatar" id="home-avatar" onclick="goTo('profile')" title="Profile">M</div>
         </div>
       </header>
 
@@ -1557,24 +1586,28 @@
       </div>
 
       <div class="profile-header">
-        <div class="profile-avatar">M</div>
-        <div class="profile-name">Mehedi Hasan</div>
-        <div class="profile-email">mehedi@example.com • +880 1XXX-XXXXXX</div>
+        <div class="profile-avatar" id="profile-avatar-display">M</div>
+        <div class="profile-name" id="profile-name-display">Mehedi Hasan</div>
+        <div class="profile-email" id="profile-email-display">Not signed in</div>
+        <button class="filter-chip" type="button" style="margin-top:10px;" onclick="openProfileEditModal()">✏️ Edit Profile</button>
       </div>
 
       <div class="profile-stats">
+        <div class="profile-stat"><div class="val" id="profile-study-time">0m</div><div class="lbl">Total Study Time</div></div>
         <div class="profile-stat"><div class="val" id="profile-attempted">0</div><div class="lbl">Questions Attempted</div></div>
         <div class="profile-stat"><div class="val" id="profile-accuracy">—</div><div class="lbl">Overall Accuracy</div></div>
         <div class="profile-stat"><div class="val" id="profile-tests">0</div><div class="lbl">Tests Completed</div></div>
-        <div class="profile-stat"><div class="val" id="profile-streak">0</div><div class="lbl">Day Streak</div></div>
       </div>
 
       <div class="card">
-        <h3 style="font-size:15px;font-weight:600;margin-bottom:8px;">Account Details</h3>
-        <div class="profile-row"><span class="label">Target Exam</span><span class="value">NEET-PG</span></div>
-        <div class="profile-row"><span class="label">Target Year</span><span class="value">2027</span></div>
-        <div class="profile-row"><span class="label">Preferred Subjects</span><span class="value">—</span></div>
-        <div class="profile-row"><span class="label">Total Study Time</span><span class="value">0 hrs</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;">
+          <h3 style="font-size:15px;font-weight:600;">Account Details</h3>
+          <button class="filter-chip" type="button" onclick="openProfileEditModal()">Edit</button>
+        </div>
+        <div class="profile-row"><span class="label">Target Exam</span><span class="value" id="profile-target-exam">NEET-PG</span></div>
+        <div class="profile-row"><span class="label">Target Year</span><span class="value" id="profile-target-year">2027</span></div>
+        <div class="profile-row"><span class="label">Preferred Subjects</span><span class="value" id="profile-preferred-subjects">All</span></div>
+        <div class="profile-row"><span class="label">Current Day Streak</span><span class="value" id="profile-streak">0 days</span></div>
         <div class="profile-row"><span class="label">Subscription</span><span class="value" style="color:var(--primary);">Free</span></div>
       </div>
 
@@ -1602,23 +1635,72 @@
         </details>
       </div>
 
-      <div class="card">
-        <h3 style="font-size:15px;font-weight:600;margin-bottom:8px;">Daily Goal</h3>
-        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">Set your daily question target</p>
-        <div class="goal-options">
-          <button class="goal-btn" onclick="setDailyGoal(25)">25</button>
-          <button class="goal-btn" onclick="setDailyGoal(50)">50</button>
-          <button class="goal-btn" onclick="setDailyGoal(75)">75</button>
-          <button class="goal-btn active" onclick="setDailyGoal(100)">100</button>
-          <button class="goal-btn" onclick="setDailyGoal(150)">150</button>
-          <button class="goal-btn" onclick="showToast('Custom goal – enter number')">Custom</button>
+      <div class="card" id="data-backup-card">
+        <h3 style="font-size:15px;font-weight:600;margin-bottom:8px;">💾 Data Backup</h3>
+        <p style="font-size:12px;color:var(--text-secondary);line-height:1.45;margin-bottom:10px;">Your scores, bookmarks, notes, saved tests and settings are backed up here. Keep a file backup as a second safety copy.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="filter-chip" type="button" onclick="MedMCQLocal.exportBackup()">⬇️ Download Backup</button>
+          <button class="filter-chip" type="button" onclick="MedMCQLocal.saveBackupPhoto()">📷 Backup Photo</button>
+          <button class="filter-chip" type="button" onclick="document.getElementById('backup-file-input').click()">↩️ Restore Backup</button>
         </div>
+        <input id="backup-file-input" type="file" accept="application/json,.json" style="display:none;" onchange="MedMCQLocal.importBackup(this)" />
+        <p style="font-size:11px;color:var(--text-secondary);margin-top:8px;">Backup Photo is a visual safety copy. The JSON backup is the full restorable backup.</p>
       </div>
 
       <div class="card">
-        <div class="profile-row" style="cursor:pointer;" onclick="showToast('Settings')"><span class="label">⚙️ Settings</span><span>›</span></div>
-        <div class="profile-row" style="cursor:pointer;" onclick="showToast('Help & Support')"><span class="label">❓ Help & Support</span><span>›</span></div>
-        <div class="profile-row" style="cursor:pointer;" onclick="showToast('Logout')"><span class="label" style="color:#ef4444;">🚪 Logout</span><span>›</span></div>
+        <div class="profile-row" style="cursor:pointer;" onclick="openSettingsModal()"><span class="label">⚙️ Settings</span><span>›</span></div>
+        <div class="profile-row" style="cursor:pointer;" onclick="showHelpModal()"><span class="label">❓ Help & Support</span><span>›</span></div>
+        <div class="profile-row" style="cursor:pointer;" onclick="MedMCQCloud.signOut()"><span class="label" style="color:#ef4444;">🚪 Logout</span><span>›</span></div>
+      </div>
+    </div>
+
+    <!-- Profile editor -->
+    <div id="profile-edit-modal" class="modal-overlay" onclick="if(event.target===this)closeProfileEditModal()">
+      <div class="modal-box">
+        <h3>✏️ Edit Profile</h3>
+        <label>Profile photo</label>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+          <div class="profile-avatar" id="profile-edit-avatar" style="width:58px;height:58px;font-size:24px;margin:0;">M</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="filter-chip" type="button" onclick="document.getElementById('profile-photo-input').click()">📷 Choose Photo</button>
+            <button class="filter-chip" type="button" onclick="removeProfilePhoto()">Remove</button>
+          </div>
+        </div>
+        <input id="profile-photo-input" type="file" accept="image/*" style="display:none;" onchange="handleProfilePhoto(this)" />
+        <label>Name</label><input id="profile-name-input" type="text" maxlength="60" placeholder="Your name" />
+        <label>Target Exam</label><input id="profile-exam-input" type="text" maxlength="40" placeholder="NEET-PG" />
+        <label>Target Year</label><input id="profile-year-input" type="number" min="2020" max="2100" placeholder="2027" />
+        <label>Preferred Subjects</label><input id="profile-subjects-input" type="text" maxlength="250" placeholder="Medicine, Surgery, Pathology" />
+        <div class="modal-actions"><button class="filter-chip" type="button" onclick="closeProfileEditModal()">Cancel</button><button class="btn-primary" type="button" style="flex:1;" onclick="saveProfileDetails()">Save Profile</button></div>
+      </div>
+    </div>
+
+    <!-- App settings -->
+    <div id="settings-modal" class="modal-overlay" onclick="if(event.target===this)closeSettingsModal()">
+      <div class="modal-box">
+        <h3>⚙️ Settings</h3>
+        <div class="settings-option"><div><div class="settings-label">Appearance</div><div class="settings-help">Choose light, dark or follow your device.</div></div><div class="theme-choice" id="theme-choice"><button type="button" data-theme="light" onclick="setAppTheme('light')">☀️</button><button type="button" data-theme="dark" onclick="setAppTheme('dark')">🌙</button><button type="button" data-theme="system" onclick="setAppTheme('system')">Auto</button></div></div>
+        <div class="settings-option"><div><div class="settings-label">Automatic Cloud Sync</div><div class="settings-help">Sync changes automatically when signed in.</div></div><button id="settings-autosync" class="toggle on" type="button" onclick="toggleAutoSync()"></button></div>
+        <div class="settings-option"><div><div class="settings-label">Reduce Animations</div><div class="settings-help">Use simpler transitions while navigating.</div></div><button id="settings-reduced-motion" class="toggle" type="button" onclick="toggleReducedMotion()"></button></div>
+        <div class="settings-option"><div><div class="settings-label">Reset Daily Goal</div><div class="settings-help">Set the goal back to 100 questions.</div></div><button class="filter-chip" type="button" onclick="setDailyGoal(100);showToast('Daily goal reset to 100')">Reset</button></div>
+        <div class="modal-actions"><button class="filter-chip" type="button" onclick="closeSettingsModal()">Close</button></div>
+      </div>
+    </div>
+
+    <div id="help-modal" class="modal-overlay" onclick="if(event.target===this)closeHelpModal()">
+      <div class="modal-box"><h3>❓ Help & Support</h3><p style="font-size:13px;color:var(--text-secondary);line-height:1.5;">Use Cloud Sync with the same account on your phone and tablet. Keep the JSON backup as a second safety copy. If a sync problem occurs, use Sync Now after reconnecting to the internet.</p><div class="modal-actions"><button class="btn-primary" type="button" style="flex:1;" onclick="closeHelpModal()">Done</button></div></div>
+    </div>
+
+    <!-- Delete Saved Test confirmation popup -->
+    <div id="delete-test-modal" onclick="if(event.target===this)closeDeleteTestPopup()">
+      <div class="modal-card" style="max-width:360px;width:calc(100% - 32px);padding:20px;border-radius:16px;">
+        <div style="font-size:30px;margin-bottom:8px;">🗑️</div>
+        <h3 style="font-size:17px;font-weight:700;margin-bottom:7px;">Delete saved test?</h3>
+        <p style="font-size:13px;color:var(--text-secondary);line-height:1.45;margin-bottom:15px;">This will permanently remove <b id="delete-test-name">this test</b> from Saved Tests.</p>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="filter-chip" type="button" onclick="closeDeleteTestPopup()">Cancel</button>
+          <button class="filter-chip" type="button" style="color:#b91c1c;border-color:#fecaca;" onclick="confirmDeleteTest()">Delete</button>
+        </div>
       </div>
     </div>
 
@@ -2000,8 +2082,20 @@
     let dailyTarget = 100;
     let todayQuestions = 0;
     let dailyQuestionConfig = { sources:['All'], subjects:['All'], order:'random', count:10 };
+    // Personal profile/settings state
+    let profileName = 'Mehedi Hasan';
+    let profilePhoto = '';
+    let targetExam = 'NEET-PG';
+    let targetYear = '2027';
+    let preferredSubjects = 'All';
+    let totalStudyTimeSec = 0;
+    let appTheme = 'system';
+    let autoSyncEnabled = true;
+    let reducedMotion = false;
+    let studyTimerId = null;
+    let studyLastTick = Date.now();
 
-    let todayAccuracy = 78;
+    let todayAccuracy = 0;
     let currentSubjectFilter = 'All';
     let currentTopicFilter = 'All';
     let currentSubject = null;
@@ -2330,6 +2424,7 @@
         at: Date.now()
       };
       syncUserProgressFromAttempts();
+      try { persistMedMcqState && persistMedMcqState(); } catch(e) {}
     }
 
     function recordSessionAttempts(questions) {
@@ -2403,34 +2498,47 @@
       };
     }
 
+    function getDateKeyFromMs(ms) { const d=new Date(ms); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+    function getTodayProgressStats() {
+      const today=getTodayKey(); let attempted=0, correct=0; const activeDates=new Set();
+      Object.values(questionAttemptMap||{}).forEach(a=>{ if(!a||!a.at) return; const key=getDateKeyFromMs(a.at); activeDates.add(key); if(key===today){ attempted++; if(a.correct) correct++; } });
+      let streak=0; let cursor=new Date(); cursor.setHours(0,0,0,0);
+      // Count consecutive calendar days ending today; if no activity today, streak is 0.
+      if(attempted>0){ while(true){ const k=getDateKeyFromMs(cursor.getTime()); if(!activeDates.has(k)) break; streak++; cursor.setDate(cursor.getDate()-1); } }
+      return { attempted, correct, accuracy: attempted ? Math.round(correct/attempted*100) : null, streak };
+    }
+    function formatStudyTime(sec) {
+      sec=Math.max(0,Math.floor(sec||0)); const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60);
+      if(h) return h+'h '+m+'m'; return m+'m';
+    }
+    function renderTodayProgress() {
+      const d=getTodayProgressStats(); todayQuestions=d.attempted; todayAccuracy=d.accuracy==null?0:d.accuracy;
+      const q=document.getElementById('today-qs'), a=document.getElementById('today-acc'), st=document.getElementById('today-streak');
+      if(q) q.textContent=d.attempted.toLocaleString(); if(a) a.textContent=d.accuracy==null?'—':d.accuracy+'%'; if(st) st.textContent=d.streak;
+      const pct=dailyTarget ? Math.min(100,Math.round(d.attempted/dailyTarget*100)) : 0;
+      const fill=document.getElementById('daily-fill'), text=document.getElementById('daily-goal-text'); if(fill) fill.style.width=pct+'%'; if(text) text.textContent=d.attempted+' / '+dailyTarget;
+      const profileAttempted=document.getElementById('profile-attempted'), profileAcc=document.getElementById('profile-accuracy'), profileStreak=document.getElementById('profile-streak'), profileTests=document.getElementById('profile-tests');
+      const g=getGlobalProgress(); if(profileAttempted) profileAttempted.textContent=g.attempted.toLocaleString(); if(profileAcc) profileAcc.textContent=g.accuracy==null?'—':g.accuracy+'%'; if(profileStreak) profileStreak.textContent=d.streak; if(profileTests) profileTests.textContent=(recentTests||[]).filter(t=>t.status==='completed'||t.score!=null).length.toLocaleString();
+      const timeEl=document.getElementById('profile-study-time'); if(timeEl) timeEl.textContent=formatStudyTime(totalStudyTimeSec);
+      return d;
+    }
+    function updateProfileUI() {
+      const name=profileName||'Med MCQ User', initial=(name.trim().charAt(0)||'M').toUpperCase();
+      const els=[document.getElementById('profile-name-display')]; els.forEach(e=>{if(e)e.textContent=name;});
+      const email=document.getElementById('profile-email-display'); if(email) email.textContent=(firebaseUser&&firebaseUser.email)||'Cloud account not connected';
+      const exam=document.getElementById('profile-target-exam'); if(exam) exam.textContent=targetExam||'NEET-PG';
+      const year=document.getElementById('profile-target-year'); if(year) year.textContent=targetYear||'—';
+      const subj=document.getElementById('profile-preferred-subjects'); if(subj) subj.textContent=preferredSubjects||'All';
+      ['profile-avatar-display','profile-edit-avatar'].forEach(id=>{ const el=document.getElementById(id); if(!el)return; el.innerHTML=profilePhoto?'<img src="'+profilePhoto.replace(/"/g,'&quot;')+'" alt="Profile">':initial; });
+      const home=document.getElementById('home-avatar'); if(home){home.innerHTML=profilePhoto?'<img src="'+profilePhoto.replace(/"/g,'&quot;')+'" alt="Profile">':initial; home.classList.toggle('has-photo',!!profilePhoto);}
+      const greet=document.getElementById('home-greeting'); if(greet) greet.textContent='Assalamu Alaikum, '+name.split(/\s+/)[0]+' 👋';
+      renderTodayProgress();
+      const study=document.getElementById('profile-study-time'); if(study) study.textContent=formatStudyTime(totalStudyTimeSec);
+    }
     function syncUserProgressFromAttempts() {
-      const g = getGlobalProgress();
-      if (typeof userProgress !== 'undefined') {
-        userProgress.hasActivity = g.attempted > 0;
-        userProgress.overall = {
-          attempted: g.attempted,
-          correct: g.correct,
-          incorrect: g.incorrect
-        };
-        // Rebuild subject rows from DB subjects that have questions
-        const subjects = [];
-        if (typeof MARROW_QBANK !== 'undefined' && MARROW_QBANK) {
-          Object.keys(MARROW_QBANK).forEach(name => {
-            const st = getSubjectProgress(name);
-            if (st.total > 0) subjects.push(st);
-          });
-        }
-        userProgress.subjects = subjects;
-      }
-      // Home dashboard numbers
-      try {
-        const elQ = document.getElementById('today-qs');
-        // keep today separate; overall attempted shown on profile/progress
-        const elAtt = document.getElementById('profile-attempted');
-        if (elAtt) elAtt.textContent = g.attempted.toLocaleString();
-        const elAcc = document.getElementById('profile-accuracy');
-        if (elAcc) elAcc.textContent = g.accuracy != null ? g.accuracy + '%' : '—';
-      } catch (e) {}
+      const g=getGlobalProgress();
+      if(typeof userProgress!=='undefined'){ userProgress.hasActivity=g.attempted>0; userProgress.overall={attempted:g.attempted,correct:g.correct,incorrect:g.incorrect}; const subjects=[]; if(typeof MARROW_QBANK!=='undefined'&&MARROW_QBANK) Object.keys(MARROW_QBANK).forEach(name=>{const st=getSubjectProgress(name);if(st.total>0)subjects.push(st);}); userProgress.subjects=subjects; }
+      try { updateProfileUI(); } catch(e) {}
     }
 
     function getQbankSubjectStats(sourceId, subject) {
@@ -2810,8 +2918,9 @@
         if (page === 'progress') safeCall(function () { if (typeof renderProgress === 'function') renderProgress(); });
         if (page === 'practice') safeCall(function () { if (typeof renderPracticePage === 'function') renderPracticePage(); });
         if (page === 'practice-subjects') safeCall(function () { if (typeof renderPracticeAllSubjects === 'function') renderPracticeAllSubjects(); });
-        if (page === 'home') safeCall(function () { if (typeof renderContinueCard === 'function') renderContinueCard(); });
+        if (page === 'home') safeCall(function () { if (typeof renderContinueCard === 'function') renderContinueCard(); renderTodayProgress(); updateProfileUI(); });
         if (page === 'test') safeCall(assertPracticeUI);
+        if (page === 'profile') safeCall(function(){ updateProfileUI(); renderTodayProgress(); });
 
         try { window.scrollTo(0, 0); } catch (e) {}
       } catch (err) {
@@ -4139,15 +4248,40 @@ function startAllSourcePractice(subject, topic) {
       showToast(q.marked ? 'Marked for review' : 'Unmarked');
     }
 
+    function upsertGlobalBookmark(q, sourceLabel) {
+      if (!q || typeof bookmarkedQuestions === 'undefined') return;
+      const id = q.id || ('q_' + Date.now());
+      const idx = bookmarkedQuestions.findIndex(b => b.id === id);
+      const item = {
+        id, qLabel: q.qLabel || q.displayNumber || id, subject: q.subject || '',
+        topic: q.topic || q.chapter || '', chapter: q.chapter || q.topic || '',
+        text: q.text || '', difficulty: q.difficulty || 'Medium',
+        bookmarked_at: (idx >= 0 && bookmarkedQuestions[idx].bookmarked_at) || new Date().toISOString(),
+        tagClass: q.tagClass || subjectTagMap[q.subject] || 'cm', source: q.source || sourceLabel || 'Practice',
+        status: q.selected ? (q.selected === q.correct ? 'Correct' : 'Incorrect') : 'Unattempted',
+        userAnswer: q.selected || q.userAnswer || null, correctAnswer: q.correct || q.correctAnswer || 'A',
+        options: Array.isArray(q.options) ? q.options.slice() : [], explanation: q.explanation || '', highYield: !!q.highYield
+      };
+      if (idx >= 0) bookmarkedQuestions[idx] = Object.assign({}, bookmarkedQuestions[idx], item);
+      else bookmarkedQuestions.unshift(item);
+    }
+    function removeGlobalBookmark(id) {
+      if (typeof bookmarkedQuestions === 'undefined') return;
+      bookmarkedQuestions = bookmarkedQuestions.filter(b => b.id !== id);
+    }
     function toggleTestBookmark() {
       if (!testSession) return;
       const q = testSession.questions[testSession.index];
       q.bookmarked = !q.bookmarked;
+      if (q.bookmarked) upsertGlobalBookmark(q, (testSession.config && testSession.config.source) || 'Practice');
+      else removeGlobalBookmark(q.id);
       const bmBtn = document.getElementById('test-bm-btn');
       if (bmBtn) {
         bmBtn.textContent = q.bookmarked ? '🔖' : '📑';
         bmBtn.classList.toggle('on', !!q.bookmarked);
       }
+      renderBookmarks();
+      try { persistMedMcqState && persistMedMcqState(); } catch(_) {}
       showToast(q.bookmarked ? 'Bookmarked' : 'Bookmark removed');
     }
 
@@ -5534,29 +5668,11 @@ function startAllSourcePractice(subject, topic) {
       const q = reviewFiltered[reviewIndex];
       if (!q) return;
       q.bookmarked = !q.bookmarked;
-      // Also sync to global bookmarkedQuestions if possible
-      if (q.bookmarked && typeof bookmarkedQuestions !== 'undefined') {
-        if (!bookmarkedQuestions.some(b => b.id === q.id)) {
-          bookmarkedQuestions.unshift({
-            id: q.id,
-            qLabel: q.id,
-            text: q.text,
-            options: q.options,
-            correctAnswer: q.correct,
-            userAnswer: q.selected,
-            explanation: q.explanation,
-            subject: q.subject,
-            topic: q.topic,
-            difficulty: q.difficulty,
-            source: (currentTestDetail && currentTestDetail.source) || 'Review',
-            bookmarked_at: new Date().toISOString(),
-            status: q.selected ? (q.selected === q.correct ? 'Correct' : 'Incorrect') : 'Unattempted',
-            highYield: false,
-            tagClass: 'cm'
-          });
-        }
-      }
+      if (q.bookmarked) upsertGlobalBookmark(q, (currentTestDetail && currentTestDetail.source) || 'Review');
+      else removeGlobalBookmark(q.id);
       renderCurrentReviewQuestion();
+      renderBookmarks();
+      try { persistMedMcqState && persistMedMcqState(); } catch(_) {}
       showToast(q.bookmarked ? 'Bookmarked' : 'Bookmark removed');
     }
     function reportQuestion() {
@@ -5756,6 +5872,62 @@ function startAllSourcePractice(subject, topic) {
 
     // Track where PYQ was opened from
     const _origGoToPyq = null;
+    // ===== PROFILE / SETTINGS / STUDY TIME =====
+    window.setAppTheme=setAppTheme; window.toggleAutoSync=toggleAutoSync; window.toggleReducedMotion=toggleReducedMotion; window.openSettingsModal=openSettingsModal; window.closeSettingsModal=closeSettingsModal;
+    function startStudyClock(){
+      if(studyTimerId) return; studyLastTick=Date.now();
+      studyTimerId=setInterval(()=>{
+        const now=Date.now(), delta=Math.max(0,Math.min(5,Math.floor((now-studyLastTick)/1000))); studyLastTick=now;
+        const active=document.body.classList.contains('test-mode') || document.getElementById('page-practice')?.classList.contains('active') || document.getElementById('page-review')?.classList.contains('active') || document.getElementById('page-test-detail')?.classList.contains('active');
+        if(document.visibilityState==='visible' && active){ totalStudyTimeSec+=delta; const el=document.getElementById('profile-study-time'); if(el)el.textContent=formatStudyTime(totalStudyTimeSec); }
+      },1000);
+    }
+    function applyTheme(){
+      const dark=appTheme==='dark' || (appTheme==='system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.body.classList.toggle('dark-mode',!!dark); document.documentElement.style.colorScheme=dark?'dark':'light';
+      const meta=document.querySelector('meta[name="theme-color"]'); if(meta)meta.content=dark?'#0f172a':'#0d9488';
+      document.querySelectorAll('#theme-choice button').forEach(b=>b.classList.toggle('active',b.dataset.theme===appTheme));
+    }
+    function setAppTheme(v){ if(!['light','dark','system'].includes(v))v='system'; appTheme=v; applyTheme(); persistMedMcqState&&persistMedMcqState(); showToast('Appearance: '+v); }
+    function toggleAutoSync(){ autoSyncEnabled=!autoSyncEnabled; document.getElementById('settings-autosync')?.classList.toggle('on',autoSyncEnabled); persistMedMcqState&&persistMedMcqState(); showToast(autoSyncEnabled?'Automatic sync on':'Automatic sync off'); }
+    function toggleReducedMotion(){ reducedMotion=!reducedMotion; document.getElementById('settings-reduced-motion')?.classList.toggle('on',reducedMotion); document.documentElement.classList.toggle('reduced-motion',reducedMotion); persistMedMcqState&&persistMedMcqState(); }
+    function openSettingsModal(){ const m=document.getElementById('settings-modal'); if(m)m.classList.add('open'); document.getElementById('settings-autosync')?.classList.toggle('on',autoSyncEnabled); document.getElementById('settings-reduced-motion')?.classList.toggle('on',reducedMotion); applyTheme(); }
+    function closeSettingsModal(){document.getElementById('settings-modal')?.classList.remove('open');}
+    function openHelpModal(){document.getElementById('help-modal')?.classList.add('open');}
+    function closeHelpModal(){document.getElementById('help-modal')?.classList.remove('open');}
+    function openProfileEditModal(){
+      const n=document.getElementById('profile-name-input'),e=document.getElementById('profile-exam-input'),y=document.getElementById('profile-year-input'),s=document.getElementById('profile-subjects-input');
+      if(n)n.value=profileName||''; if(e)e.value=targetExam||'NEET-PG'; if(y)y.value=targetYear||''; if(s)s.value=preferredSubjects==='All'?'':preferredSubjects; updateProfileUI(); document.getElementById('profile-edit-modal')?.classList.add('open');
+    }
+    function closeProfileEditModal(){document.getElementById('profile-edit-modal')?.classList.remove('open');}
+    function handleProfilePhoto(input){
+      const f=input&&input.files&&input.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ const img=new Image(); img.onload=()=>{ const c=document.createElement('canvas'),max=240,scale=Math.min(1,max/Math.max(img.width,img.height)); c.width=Math.max(1,Math.round(img.width*scale)); c.height=Math.max(1,Math.round(img.height*scale)); const ctx=c.getContext('2d');ctx.drawImage(img,0,0,c.width,c.height);profilePhoto=c.toDataURL('image/jpeg',.72);updateProfileUI();};img.src=r.result;};r.readAsDataURL(f);
+    }
+    function removeProfilePhoto(){profilePhoto='';updateProfileUI();}
+    function saveProfileDetails(){
+      const n=(document.getElementById('profile-name-input')?.value||'').trim();
+      const e=(document.getElementById('profile-exam-input')?.value||'').trim();
+      const y=(document.getElementById('profile-year-input')?.value||'').trim();
+      const s=(document.getElementById('profile-subjects-input')?.value||'').trim();
+      profileName=n || 'Med MCQ User';
+      targetExam=e || 'NEET-PG';
+      targetYear=y || '2027';
+      preferredSubjects=s || 'All';
+      updateProfileUI();
+      persistMedMcqState&&persistMedMcqState();
+      closeProfileEditModal();
+      try { window.dispatchEvent(new Event('medmcq-state-changed')); } catch(_) {}
+      showToast('Profile updated and saved');
+    }
+    window.openProfileEditModal=openProfileEditModal;
+    window.closeProfileEditModal=closeProfileEditModal;
+    window.handleProfilePhoto=handleProfilePhoto;
+    window.removeProfilePhoto=removeProfilePhoto;
+    window.saveProfileDetails=saveProfileDetails;
+    window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{if(appTheme==='system')applyTheme();});
+    startStudyClock();
+
+
 
     function setDailyGoal(target) {
       dailyTarget = target;
@@ -5823,7 +5995,7 @@ function startAllSourcePractice(subject, topic) {
               <button class="filter-chip" onclick="restartSavedTest('${t.id}')">Start Again</button>
               ${t.status === 'completed' ? `<button class="filter-chip" onclick="viewSavedTestResult('${t.id}')">View Result</button>` : ''}
               <button class="filter-chip" onclick="editSavedTest('${t.id}')">Edit</button>
-              <button class="filter-chip" style="color:#b91c1c;" onclick="deleteTest('${t.id}')">Delete</button>
+              <button class="filter-chip" style="color:#b91c1c;" onclick="openDeleteTestPopup('${t.id}')">Delete</button>
             </div>
           </div>
         `;
@@ -5971,11 +6143,28 @@ function startAllSourcePractice(subject, topic) {
       showToast('Test duplicated');
     }
 
-    function deleteTest(id) {
+    let pendingDeleteTestId = null;
+    function openDeleteTestPopup(id) {
+      const t = savedTests.find(x => x.id === id);
+      if (!t) return;
+      pendingDeleteTestId = id;
+      const nameEl = document.getElementById('delete-test-name');
+      if (nameEl) nameEl.textContent = t.name || 'this test';
+      document.getElementById('delete-test-modal')?.classList.add('open');
+    }
+    function closeDeleteTestPopup() {
+      pendingDeleteTestId = null;
+      document.getElementById('delete-test-modal')?.classList.remove('open');
+    }
+    function confirmDeleteTest() {
+      if (!pendingDeleteTestId) return;
+      const id = pendingDeleteTestId;
       savedTests = savedTests.filter(t => t.id !== id);
+      closeDeleteTestPopup();
       renderSavedTests();
       showToast('Test deleted');
     }
+    function deleteTest(id) { openDeleteTestPopup(id); }
 
     // ========== NOTES ==========
     function setNotesOrg(org) {
@@ -6610,6 +6799,7 @@ function startAllSourcePractice(subject, topic) {
       lastRemoved = { item: bookmarkedQuestions[idx], index: idx };
       bookmarkedQuestions.splice(idx, 1);
       renderBookmarks();
+      try { persistMedMcqState && persistMedMcqState(); } catch(_) {}
       if (currentQuestionId === id) {
         // if viewing this question, update bookmark button
         const btn = document.getElementById('q-detail-bookmark-btn');
@@ -7262,24 +7452,30 @@ function startAllSourcePractice(subject, topic) {
     })();
 
     // ========== FEATURE: LOCAL PERSISTENCE + FIREBASE CLOUD SYNC ==========
-    // Keeps user-generated study data on-device and optionally backs it up to
-    // the user's private Firestore document for cross-device sync.
+    // Local-first state with conflict-safe, real-time cross-device synchronization.
     (function () {
       const STORE_KEY = 'medmcq_user_state_v3';
+      const FIREBASE_CONFIG_KEY = 'medmcq_firebase_config_v1';
+      let localSavedAt = null;
+      let lastStateFingerprint = null;
+      let firebaseReady = false;
+      let firebaseUser = null;
+      let cloudSyncBusy = false;
+      let cloudUnsubscribe = null;
+      let cloudUploadTimer = null;
+      let lastCloudSavedAt = 0;
+      let lastUploadedFingerprint = null;
+      let suppressCloudUpload = false;
 
-      function safeJson(v) {
-        try { return JSON.parse(JSON.stringify(v)); } catch (e) { return null; }
-      }
-
+      function safeJson(v) { try { return JSON.parse(JSON.stringify(v)); } catch (e) { return null; } }
       function getTodayKey() {
         const d = new Date();
         return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
       }
-
       function buildState() {
         return {
           version: 3,
-          savedAt: new Date().toISOString(),
+          savedAt: localSavedAt || new Date().toISOString(),
           dailyTarget: typeof dailyTarget !== 'undefined' ? dailyTarget : 100,
           dailyQuestionConfig: safeJson(typeof dailyQuestionConfig !== 'undefined' ? dailyQuestionConfig : {sources:['All'],subjects:['All'],order:'random',count:10}) || {sources:['All'],subjects:['All'],order:'random',count:10},
           questionAttemptMap: safeJson(typeof questionAttemptMap !== 'undefined' ? questionAttemptMap : {}) || {},
@@ -7293,32 +7489,48 @@ function startAllSourcePractice(subject, topic) {
           pyqExam: typeof pyqExam !== 'undefined' ? pyqExam : 'NEET-PG',
           pyqView: typeof pyqView !== 'undefined' ? pyqView : 'subject',
           progressRange: typeof progressRange !== 'undefined' ? progressRange : 7,
+          profileName: typeof profileName !== 'undefined' ? profileName : 'Mehedi Hasan',
+          profilePhoto: typeof profilePhoto !== 'undefined' ? profilePhoto : '',
+          targetExam: typeof targetExam !== 'undefined' ? targetExam : 'NEET-PG',
+          targetYear: typeof targetYear !== 'undefined' ? targetYear : '2027',
+          preferredSubjects: typeof preferredSubjects !== 'undefined' ? preferredSubjects : 'All',
+          totalStudyTimeSec: typeof totalStudyTimeSec !== 'undefined' ? totalStudyTimeSec : 0,
+          appTheme: typeof appTheme !== 'undefined' ? appTheme : 'system',
+          autoSyncEnabled: typeof autoSyncEnabled !== 'undefined' ? autoSyncEnabled : true,
+          reducedMotion: typeof reducedMotion !== 'undefined' ? reducedMotion : false,
           todayKey: getTodayKey()
         };
       }
-
+      function fingerprint(st) {
+        const copy = safeJson(st) || {};
+        delete copy.savedAt;
+        return JSON.stringify(copy);
+      }
       function persistLocal(show) {
         try {
-          localStorage.setItem(STORE_KEY, JSON.stringify(buildState()));
+          const candidate = buildState();
+          const fp = fingerprint(candidate);
+          if (fp !== lastStateFingerprint || !localStorage.getItem(STORE_KEY)) {
+            localSavedAt = new Date().toISOString();
+            candidate.savedAt = localSavedAt;
+            localStorage.setItem(STORE_KEY, JSON.stringify(candidate));
+            lastStateFingerprint = fingerprint(candidate);
+            try { window.dispatchEvent(new Event('medmcq-state-changed')); } catch(_) {}
+          }
           if (show) showToast('Saved on this device');
           return true;
-        } catch (e) {
-          console.warn('[MedMCQ] local save failed', e);
-          return false;
-        }
+        } catch (e) { console.warn('[MedMCQ] local save failed', e); return false; }
       }
-
       function restoreLocal() {
         try {
           const raw = localStorage.getItem(STORE_KEY);
-          if (!raw) return false;
+          if (!raw) { localSavedAt = null; lastStateFingerprint = null; return false; }
           const st = JSON.parse(raw);
           if (!st || typeof st !== 'object') return false;
+          localSavedAt = st.savedAt || null;
           if (typeof st.dailyTarget === 'number') dailyTarget = st.dailyTarget;
           if (st.dailyQuestionConfig && typeof st.dailyQuestionConfig === 'object') dailyQuestionConfig = Object.assign({sources:['All'],subjects:['All'],order:'random',count:10}, st.dailyQuestionConfig);
-          if (st.questionAttemptMap && typeof st.questionAttemptMap === 'object') {
-            questionAttemptMap = Object.assign(Object.create(null), st.questionAttemptMap);
-          }
+          if (st.questionAttemptMap && typeof st.questionAttemptMap === 'object') questionAttemptMap = Object.assign(Object.create(null), st.questionAttemptMap);
           if (Array.isArray(st.bookmarkedQuestions)) bookmarkedQuestions = st.bookmarkedQuestions;
           if (Array.isArray(st.savedTests)) savedTests = st.savedTests;
           if (Array.isArray(st.userNotes)) userNotes = st.userNotes;
@@ -7329,23 +7541,21 @@ function startAllSourcePractice(subject, topic) {
           if (st.pyqExam != null) pyqExam = st.pyqExam;
           if (st.pyqView != null) pyqView = st.pyqView;
           if (st.progressRange != null) progressRange = st.progressRange;
+          if (st.profileName != null) profileName = st.profileName;
+          if (st.profilePhoto != null) profilePhoto = st.profilePhoto;
+          if (st.targetExam != null) targetExam = st.targetExam;
+          if (st.targetYear != null) targetYear = st.targetYear;
+          if (st.preferredSubjects != null) preferredSubjects = st.preferredSubjects;
+          if (st.totalStudyTimeSec != null) totalStudyTimeSec = Number(st.totalStudyTimeSec)||0;
+          if (st.appTheme != null) appTheme = st.appTheme;
+          if (st.autoSyncEnabled != null) autoSyncEnabled = !!st.autoSyncEnabled;
+          if (st.reducedMotion != null) reducedMotion = !!st.reducedMotion;
+          lastStateFingerprint = fingerprint(st);
           return true;
-        } catch (e) {
-          console.warn('[MedMCQ] local restore failed', e);
-          return false;
-        }
+        } catch (e) { console.warn('[MedMCQ] local restore failed', e); return false; }
       }
 
-
-      // ========== FIREBASE CLOUD SYNC ==========
-      const FIREBASE_CONFIG_KEY = 'medmcq_firebase_config_v1';
-      let firebaseReady = false;
-      let firebaseUser = null;
-      let cloudSyncBusy = false;
-
-      function readFirebaseConfig() {
-        try { return JSON.parse(localStorage.getItem(FIREBASE_CONFIG_KEY) || 'null'); } catch(e) { return null; }
-      }
+      function readFirebaseConfig() { try { return JSON.parse(localStorage.getItem(FIREBASE_CONFIG_KEY) || 'null'); } catch(e) { return null; } }
       function firebaseConfigLooksValid(c) { return !!(c && c.apiKey && c.authDomain && c.projectId && c.appId); }
       function setCloudStatus(text) { const el=document.getElementById('firebase-sync-status'); if(el) el.textContent=text; }
       function updateCloudUI() {
@@ -7355,6 +7565,119 @@ function startAllSourcePractice(subject, topic) {
         if(actions) actions.style.display=firebaseUser?'flex':'none';
         if(firebaseUser) setCloudStatus('● Connected • '+(firebaseUser.email||'Account'));
       }
+      function stateSavedTime(st) { return Date.parse((st && st.savedAt) || '') || 0; }
+
+      async function applyCloudState(st, silent) {
+        if (!st || st.version !== 3) return false;
+        localSavedAt = st.savedAt || new Date().toISOString();
+        localStorage.setItem(STORE_KEY, JSON.stringify(st));
+        restoreLocal();
+        syncUserProgressFromAttempts();
+        renderContinueCard(); renderBookmarks(); renderNotes(); renderSavedTests(); setDailyGoal(dailyTarget);
+        try { renderDailyQuestionUI(); } catch(e) {}
+        lastCloudSavedAt = stateSavedTime(st);
+        setCloudStatus('● Synced • '+(firebaseUser?.email||'Account')+' • '+new Date().toLocaleTimeString());
+        if (!silent) showToast('Cloud data loaded');
+        return true;
+      }
+
+      async function uploadCloud(silent=true) {
+        if(!firebaseReady||!firebaseUser||cloudSyncBusy||suppressCloudUpload) return false;
+        cloudSyncBusy=true;
+        try {
+          persistLocal(false);
+          const state=buildState();
+          const fp=fingerprint(state);
+          // Never upload an unchanged state. This prevents sync loops between devices.
+          if (fp === lastUploadedFingerprint) return true;
+          await firebase.firestore().collection('users').doc(firebaseUser.uid).set({
+            state: state,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          },{merge:true});
+          lastUploadedFingerprint=fp;
+          lastCloudSavedAt=stateSavedTime(state);
+          setCloudStatus('● Synced • '+(firebaseUser.email||'Account')+' • '+new Date().toLocaleTimeString());
+          if(!silent) showToast('Cloud sync completed');
+          return true;
+        } catch(e) {
+          console.error('[MedMCQ] Firebase upload',e);
+          setCloudStatus('⚠ Connected • Cloud sync failed');
+          if(!silent) showToast(e.message||'Cloud sync failed');
+          return false;
+        } finally { cloudSyncBusy=false; }
+      }
+
+      async function handleCloudSnapshot(snap) {
+        if (!firebaseUser || !snap || !snap.exists || !snap.data().state) return;
+        const remote = snap.data().state;
+        if (!remote || remote.version !== 3) return;
+        const remoteFp=fingerprint(remote);
+        const local=buildState();
+        const localFp=fingerprint(local);
+        // Our own write or an already-applied remote state.
+        if (remoteFp === localFp) {
+          lastUploadedFingerprint=remoteFp;
+          lastCloudSavedAt=stateSavedTime(remote);
+          setCloudStatus('● Synced • '+(firebaseUser.email||'Account')+' • '+new Date().toLocaleTimeString());
+          return;
+        }
+        // If this device has no unsynced local changes, accept the cloud version immediately.
+        // If it does have unsynced changes, preserve them and upload them rather than silently overwriting.
+        const localDirty = !!lastUploadedFingerprint && localFp !== lastUploadedFingerprint;
+        if (!lastUploadedFingerprint) {
+          await applyCloudState(remote,true);
+          lastUploadedFingerprint=remoteFp;
+          return;
+        }
+        if (!localDirty) {
+          await applyCloudState(remote,true);
+          lastUploadedFingerprint=remoteFp;
+        } else if (!cloudSyncBusy) {
+          await uploadCloud(true);
+        }
+      }
+      function startCloudListener() {
+        if (cloudUnsubscribe) { try { cloudUnsubscribe(); } catch(e) {} cloudUnsubscribe=null; }
+        if (!firebaseReady || !firebaseUser) return;
+        cloudUnsubscribe = firebase.firestore().collection('users').doc(firebaseUser.uid).onSnapshot(
+          snap => { handleCloudSnapshot(snap).catch(e=>console.error('[MedMCQ] realtime sync',e)); },
+          err => { console.error('[MedMCQ] realtime listener',err); setCloudStatus('⚠ Connected • Realtime sync unavailable'); }
+        );
+      }
+      function startCloudUploadTimer() {
+        if (cloudUploadTimer) clearInterval(cloudUploadTimer);
+        cloudUploadTimer=setInterval(()=>{
+          if (firebaseUser && firebaseReady && autoSyncEnabled && document.visibilityState !== 'hidden') uploadCloud(true);
+        },5000);
+      }
+      async function syncAfterLogin() {
+        if(!firebaseReady||!firebaseUser) return;
+        startCloudListener();
+        startCloudUploadTimer();
+        const ref=firebase.firestore().collection('users').doc(firebaseUser.uid);
+        const snap=await ref.get().catch(()=>null);
+        const hasLocal=!!localStorage.getItem(STORE_KEY);
+        if(!snap || !snap.exists || !snap.data().state) {
+          lastUploadedFingerprint=null;
+          await uploadCloud(true);
+          return;
+        }
+        const cloud=snap.data().state;
+        const cloudFp=fingerprint(cloud);
+        const local=buildState();
+        const localFp=fingerprint(local);
+        if(!hasLocal || localFp === fingerprint(buildState()) && !localStorage.getItem(STORE_KEY)) {
+          await applyCloudState(cloud,true);
+          lastUploadedFingerprint=cloudFp;
+        } else if(localFp === cloudFp) {
+          lastUploadedFingerprint=cloudFp;
+          setCloudStatus('● Synced • '+(firebaseUser.email||'Account')+' • '+new Date().toLocaleTimeString());
+        } else {
+          // On login, cloud is authoritative if it exists. This prevents an old device from overwriting newer cloud data.
+          await applyCloudState(cloud,true);
+          lastUploadedFingerprint=cloudFp;
+        }
+      }
       function initFirebase() {
         const cfg=readFirebaseConfig();
         if(!firebaseConfigLooksValid(cfg) || typeof firebase==='undefined') { firebaseReady=false; setCloudStatus('Not configured • Add Firebase Web App config below'); return false; }
@@ -7362,7 +7685,9 @@ function startAllSourcePractice(subject, topic) {
           if(!firebase.apps.length) firebase.initializeApp(cfg);
           firebaseReady=true;
           firebase.auth().onAuthStateChanged(async user=>{
-            firebaseUser=user||null; updateCloudUI();
+            firebaseUser=user||null;
+            if(!user) { if(cloudUnsubscribe){ try { cloudUnsubscribe(); } catch(e) {} cloudUnsubscribe=null; } if(cloudUploadTimer){ clearInterval(cloudUploadTimer); cloudUploadTimer=null; } lastUploadedFingerprint=null; }
+            updateCloudUI();
             if(user) { const email=document.getElementById('firebase-email'); if(email) email.value=user.email||''; await syncAfterLogin(); }
           });
           return true;
@@ -7370,135 +7695,72 @@ function startAllSourcePractice(subject, topic) {
       }
       function saveConfig() {
         try {
-          const raw=(document.getElementById('firebase-config')?.value||'').trim();
+          let raw=(document.getElementById('firebase-config')?.value||'').trim();
+          raw=raw.replace(/^\/\/[^\n]*\n?/,'').trim();
+          if(/^const\s+firebaseConfig\s*=/.test(raw)) raw=raw.replace(/^const\s+firebaseConfig\s*=\s*/,'').replace(/;\s*$/,'');
           const c=JSON.parse(raw);
           if(!firebaseConfigLooksValid(c)) throw new Error('Config is missing apiKey, authDomain, projectId or appId');
           localStorage.setItem(FIREBASE_CONFIG_KEY,JSON.stringify(c));
-          showToast('Firebase configuration saved');
-          setTimeout(()=>location.reload(),250);
+          showToast('Firebase configuration saved'); setTimeout(()=>location.reload(),250);
         } catch(e) { showToast(e.message||'Invalid Firebase config JSON'); }
       }
       async function signIn() {
         try {
           if(!firebaseReady&&!initFirebase()) return;
-          const email=(document.getElementById('firebase-email')?.value||'').trim();
-          const pass=document.getElementById('firebase-password')?.value||'';
+          const email=(document.getElementById('firebase-email')?.value||'').trim(); const pass=document.getElementById('firebase-password')?.value||'';
           if(!email||!pass){showToast('Enter email and password');return;}
-          setCloudStatus('Signing in…');
-          await firebase.auth().signInWithEmailAndPassword(email,pass);
-          showToast('Cloud sync connected');
+          setCloudStatus('Signing in…'); await firebase.auth().signInWithEmailAndPassword(email,pass); showToast('Cloud sync connected');
         } catch(e) { console.error('[MedMCQ] Firebase sign in',e); showToast(e.message||'Sign in failed'); setCloudStatus('Sign in failed'); }
       }
       async function createAccount() {
         try {
           if(!firebaseReady&&!initFirebase()) return;
-          const email=(document.getElementById('firebase-email')?.value||'').trim();
-          const pass=document.getElementById('firebase-password')?.value||'';
+          const email=(document.getElementById('firebase-email')?.value||'').trim(); const pass=document.getElementById('firebase-password')?.value||'';
           if(!email||pass.length<6){showToast('Enter an email and a password of at least 6 characters');return;}
-          setCloudStatus('Creating account…');
-          await firebase.auth().createUserWithEmailAndPassword(email,pass);
-          showToast('Account created • Cloud sync is on');
+          setCloudStatus('Creating account…'); await firebase.auth().createUserWithEmailAndPassword(email,pass); showToast('Account created • Cloud sync is on');
         } catch(e) { console.error('[MedMCQ] Firebase create',e); showToast(e.message||'Account creation failed'); setCloudStatus('Account creation failed'); }
-      }
-      async function uploadCloud(silent=true) {
-        if(!firebaseReady||!firebaseUser||cloudSyncBusy)return false;
-        cloudSyncBusy=true;
-        try {
-          persistLocal(false);
-          const state=buildState();
-          await firebase.firestore().collection('users').doc(firebaseUser.uid).set({state:state,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
-          setCloudStatus('● Synced • '+(firebaseUser.email||'Account')+' • '+new Date().toLocaleTimeString());
-          if(!silent) showToast('Cloud sync completed');
-          return true;
-        } catch(e) { console.error('[MedMCQ] Firebase upload',e); setCloudStatus('Connected • Cloud sync failed'); if(!silent) showToast(e.message||'Cloud sync failed'); return false; }
-        finally { cloudSyncBusy=false; }
-      }
-      async function downloadCloud(showConfirm=true) {
-        if(!firebaseReady||!firebaseUser)return false;
-        try {
-          const snap=await firebase.firestore().collection('users').doc(firebaseUser.uid).get();
-          if(!snap.exists||!snap.data().state)return false;
-          const st=snap.data().state;
-          if(!st||st.version!==3){showToast('Cloud data format is not supported');return false;}
-          if(showConfirm&&!confirm('Load your cloud data on this device? Current device data will be replaced.'))return false;
-          localStorage.setItem(STORE_KEY,JSON.stringify(st)); restoreLocal(); syncUserProgressFromAttempts(); renderContinueCard(); renderBookmarks(); renderNotes(); renderSavedTests(); setDailyGoal(dailyTarget); try{renderDailyQuestionUI();}catch(e){}
-          setCloudStatus('● Synced • '+(firebaseUser.email||'Account')); return true;
-        } catch(e){console.error('[MedMCQ] Firebase download',e);showToast(e.message||'Cloud restore failed');return false;}
-      }
-      async function syncAfterLogin() {
-        if(!firebaseReady||!firebaseUser)return;
-        const snap=await firebase.firestore().collection('users').doc(firebaseUser.uid).get().catch(()=>null);
-        const hasLocal=!!localStorage.getItem(STORE_KEY);
-        if(snap&&snap.exists&&snap.data().state) {
-          const cloud=snap.data().state;
-          if(!hasLocal) {
-            await downloadCloud(false);
-          } else {
-            const local=buildState();
-            const ct=Date.parse(cloud.savedAt||'')||0, lt=Date.parse(local.savedAt||'')||0;
-            if(ct>lt) {
-              if(confirm('Cloud data is newer. Load it on this device?')) await downloadCloud(false);
-              else await uploadCloud(true);
-            } else await uploadCloud(true);
-          }
-        } else await uploadCloud(true);
-        updateCloudUI();
       }
       async function syncNow(){ if(!firebaseUser){showToast('Sign in to Cloud Sync first');return;} await uploadCloud(false); }
       async function signOut(){ try{await firebase.auth().signOut();showToast('Signed out • local data remains on this device');}catch(e){showToast(e.message||'Sign out failed');} }
+
+      window.addEventListener('online',()=>{ if(firebaseUser&&autoSyncEnabled) uploadCloud(true); });
+      document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden' && firebaseUser && autoSyncEnabled) uploadCloud(true); });
+      window.addEventListener('beforeunload',()=>{ try{ persistLocal(false); }catch(_){} });
+
       function exportBackup() {
         try {
-          persistLocal(false);
-          const blob = new Blob([JSON.stringify(buildState(), null, 2)], {type:'application/json'});
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url; a.download = 'med-mcq-backup-' + getTodayKey() + '.json';
-          document.body.appendChild(a); a.click(); a.remove();
-          setTimeout(() => URL.revokeObjectURL(url), 1000);
-          showToast('Backup downloaded');
-          return true;
-        } catch(e) { console.error('[MedMCQ] export',e); showToast('Could not download backup'); return false; }
+          persistLocal(false); const blob=new Blob([JSON.stringify(buildState(),null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob);
+          const a=document.createElement('a'); a.href=url; a.download='med-mcq-backup-'+getTodayKey()+'.json'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000); showToast('Backup downloaded'); return true;
+        } catch(e){console.error('[MedMCQ] export',e);showToast('Could not download backup');return false;}
       }
-
       async function importBackup(input) {
         try {
-          const file = input && input.files && input.files[0];
-          if (!file) return;
-          const st = JSON.parse(await file.text());
-          if (!st || st.version !== 3) { showToast('Unsupported Med MCQ backup'); return; }
-          if (!confirm('Import this backup? Current device data will be replaced.')) { input.value=''; return; }
-          localStorage.setItem(STORE_KEY, JSON.stringify(st));
-          restoreLocal();
-          syncUserProgressFromAttempts();
-          renderContinueCard(); renderBookmarks(); renderNotes(); renderSavedTests();
-          setDailyGoal(dailyTarget);
-          renderDailyQuestionUI();
-          showToast('Backup imported successfully');
-        } catch(e) { console.error('[MedMCQ] import',e); showToast('Invalid backup file'); }
-        finally { if (input) input.value=''; }
+          const file=input&&input.files&&input.files[0]; if(!file)return; const st=JSON.parse(await file.text());
+          if(!st||st.version!==3){showToast('Unsupported Med MCQ backup');return;}
+          if(!confirm('Import this backup? Current device data will be replaced.')){input.value='';return;}
+          localSavedAt=st.savedAt||new Date().toISOString(); localStorage.setItem(STORE_KEY,JSON.stringify(st)); restoreLocal(); syncUserProgressFromAttempts(); renderContinueCard(); renderBookmarks(); renderNotes(); renderSavedTests(); setDailyGoal(dailyTarget); try{renderDailyQuestionUI();}catch(e){}
+          lastStateFingerprint=fingerprint(st); if(firebaseUser) await uploadCloud(true); showToast('Backup imported successfully');
+        } catch(e){console.error('[MedMCQ] import',e);showToast('Invalid backup file');} finally{if(input)input.value='';}
       }
-
-
+      function saveBackupPhoto() {
+        try {
+          persistLocal(false); const st=buildState();
+          const lines=['MED MCQ — BACKUP PHOTO','Date: '+new Date().toLocaleString(),'','Questions attempted: '+Object.keys(st.questionAttemptMap||{}).length,'Bookmarked questions: '+(st.bookmarkedQuestions||[]).length,'Saved tests: '+(st.savedTests||[]).length,'Notes: '+(st.userNotes||[]).length,'Daily goal: '+st.dailyTarget,'','Visual safety copy only.','Use the JSON backup for full restore.'];
+          const canvas=document.createElement('canvas'); canvas.width=1200; canvas.height=760; const ctx=canvas.getContext('2d');
+          ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.fillStyle='#0f172a'; ctx.font='bold 42px Arial'; ctx.fillText(lines[0],60,80); ctx.font='24px Arial'; lines.slice(1).forEach((line,i)=>ctx.fillText(line,60,140+i*48));
+          canvas.toBlob(blob=>{if(!blob){showToast('Could not create backup photo');return;} const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='med-mcq-backup-photo-'+getTodayKey()+'.png'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000); showToast('Backup photo saved');},'image/png');
+        } catch(e){console.error('[MedMCQ] photo backup',e);showToast('Could not create backup photo');}
+      }
       window.MedMCQCloud={saveConfig,signIn,createAccount,syncNow,signOut};
-      window.MedMCQLocal={persist:persistLocal,restore:restoreLocal,buildState,exportBackup,importBackup};
-      restoreLocal();
-      const savedCfg=readFirebaseConfig();
-      const cfgBox=document.getElementById('firebase-config');
-      if(cfgBox&&savedCfg) cfgBox.value=JSON.stringify(savedCfg,null,2);
-      syncUserProgressFromAttempts();
-      setDailyGoal(dailyTarget);
-      try{if(typeof renderDailyQuestionUI==='function')renderDailyQuestionUI();}catch(e){}
+      window.MedMCQLocal={persist:persistLocal,restore:restoreLocal,buildState,exportBackup,importBackup,saveBackupPhoto};
+      restoreLocal(); applyTheme(); document.documentElement.classList.toggle('reduced-motion',reducedMotion); updateProfileUI(); const savedCfg=readFirebaseConfig(); const cfgBox=document.getElementById('firebase-config'); if(cfgBox&&savedCfg) cfgBox.value=JSON.stringify(savedCfg,null,2);
+      syncUserProgressFromAttempts(); setDailyGoal(dailyTarget); try{if(typeof renderDailyQuestionUI==='function')renderDailyQuestionUI();}catch(e){}
       window.persistMedMcqState=function(){persistLocal(false);};
-      setInterval(()=>persistLocal(false),2000);
-      setInterval(()=>{if(firebaseUser)uploadCloud(true);},15000);
-      document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){persistLocal(false);if(firebaseUser)uploadCloud(true);}});
-      window.addEventListener('online',()=>{if(firebaseUser)uploadCloud(true);});
-      window.addEventListener('beforeunload',()=>persistLocal(false));
-      initFirebase();
+      setInterval(()=>persistLocal(false),2000); setInterval(()=>{if(firebaseUser && autoSyncEnabled)uploadCloud(true);},8000);
+      document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){persistLocal(false);if(firebaseUser && autoSyncEnabled)uploadCloud(true);}});
+      window.addEventListener('online',()=>{if(firebaseUser && autoSyncEnabled)uploadCloud(true);}); window.addEventListener('beforeunload',()=>persistLocal(false)); initFirebase();
     })();
-  </script>
 
-  <script>
     // ===== PWA: Manifest + Service Worker =====
     (function () {
       try {
@@ -7529,7 +7791,7 @@ function startAllSourcePractice(subject, topic) {
       // Minimal service worker for installability + offline shell
       if ('serviceWorker' in navigator) {
         const swCode = `
-          const CACHE = 'med-mcq-v2';
+          const CACHE = 'med-mcq-v3';
           self.addEventListener('install', (e) => {
             e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./'])).then(() => self.skipWaiting()));
           });
