@@ -550,6 +550,9 @@
     .dq-check input{accent-color:var(--primary);}
     @media(max-width:360px){.dq-config-grid{grid-template-columns:1fr;}}
 </style>
+<script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
   <div class="app">
@@ -1575,23 +1578,27 @@
         <div class="profile-row"><span class="label">Subscription</span><span class="value" style="color:var(--primary);">Free</span></div>
       </div>
 
-      <div class="card" id="google-sync-card">
-        <h3 style="font-size:15px;font-weight:600;margin-bottom:6px;">☁️ Google Account Sync</h3>
-        <p style="font-size:12px;color:var(--text-secondary);line-height:1.45;margin-bottom:10px;">Connect your Google/Gmail account to back up your progress, bookmarks, notes and saved tests to Google Drive and restore them on another phone.</p>
-        <div id="google-sync-status" style="font-size:12px;font-weight:600;margin-bottom:10px;">Not connected</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="filter-chip" id="google-connect-btn" onclick="MedMCQGoogleSync.connect()">🔐 Connect Google</button>
-          <button class="filter-chip" id="google-backup-btn" onclick="MedMCQGoogleSync.backup()">☁️ Backup Now</button>
-          <button class="filter-chip" id="google-restore-btn" onclick="MedMCQGoogleSync.restore()">↩️ Restore</button>
-          <button class="filter-chip" type="button" onclick="MedMCQLocal.exportBackup()">⬇️ Download Backup</button>
-          <button class="filter-chip" type="button" onclick="document.getElementById('local-backup-file').click()">⬆️ Upload Backup</button>
-          <input id="local-backup-file" type="file" accept="application/json,.json" style="display:none" onchange="MedMCQLocal.importBackup(this)">
+      <div class="card" id="firebase-sync-card">
+        <h3 style="font-size:15px;font-weight:600;margin-bottom:6px;">☁️ Cloud Sync</h3>
+        <p style="font-size:12px;color:var(--text-secondary);line-height:1.45;margin-bottom:10px;">Sign in once and your Med MCQ progress, bookmarks, notes, saved tests and settings will automatically sync between your phones.</p>
+        <div id="firebase-sync-status" style="font-size:12px;font-weight:600;margin-bottom:10px;">Not configured</div>
+        <div id="firebase-auth-fields">
+          <input id="firebase-email" type="email" placeholder="Email" autocomplete="email" style="width:100%;margin-bottom:7px;padding:10px;border:1px solid var(--border);border-radius:10px;font-size:12px;outline:none;box-sizing:border-box;" />
+          <input id="firebase-password" type="password" placeholder="Password" autocomplete="current-password" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:10px;font-size:12px;outline:none;box-sizing:border-box;" />
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+            <button class="filter-chip" type="button" onclick="MedMCQCloud.signIn()">🔐 Sign In</button>
+            <button class="filter-chip" type="button" onclick="MedMCQCloud.createAccount()">➕ Create Account</button>
+          </div>
+        </div>
+        <div id="firebase-connected-actions" style="display:none;gap:8px;flex-wrap:wrap;">
+          <button class="filter-chip" type="button" onclick="MedMCQCloud.syncNow()">🔄 Sync Now</button>
+          <button class="filter-chip" type="button" onclick="MedMCQCloud.signOut()">↪️ Sign Out</button>
         </div>
         <details style="margin-top:10px;">
-          <summary style="font-size:11px;color:var(--text-secondary);cursor:pointer;">Google setup</summary>
-          <p style="font-size:11px;color:var(--text-secondary);line-height:1.45;margin-top:7px;">For Google security, this PWA needs a Google OAuth Web Client ID. Paste it below once, then tap Connect Google. Your backup is stored in the app's private Google Drive app-data area.</p>
-          <input id="google-client-id" type="text" placeholder="Google OAuth Client ID" autocomplete="off" style="width:100%;margin-top:7px;padding:10px;border:1px solid var(--border);border-radius:10px;font-size:12px;outline:none;" />
-          <button class="filter-chip" style="margin-top:7px;" onclick="MedMCQGoogleSync.saveClientId()">Save Client ID</button>
+          <summary style="font-size:11px;color:var(--text-secondary);cursor:pointer;">Firebase setup (one time)</summary>
+          <p style="font-size:11px;color:var(--text-secondary);line-height:1.45;margin-top:7px;">Paste the Firebase Web App configuration from your Firebase project. This configuration is safe to include in a web app; never paste your Firebase account password here.</p>
+          <textarea id="firebase-config" placeholder='Paste Firebase config JSON, e.g. {"apiKey":"...","authDomain":"...","projectId":"...","appId":"..."}' style="width:100%;height:110px;margin-top:7px;padding:10px;border:1px solid var(--border);border-radius:10px;font-size:11px;outline:none;box-sizing:border-box;font-family:monospace;resize:vertical;"></textarea>
+          <button class="filter-chip" type="button" style="margin-top:7px;" onclick="MedMCQCloud.saveConfig()">Save Firebase Config</button>
         </details>
       </div>
 
@@ -7254,16 +7261,11 @@ function startAllSourcePractice(subject, topic) {
       setTimeout(renderDailyQuestionUI,0);
     })();
 
-    // ========== FEATURE: LOCAL PERSISTENCE + GOOGLE DRIVE SYNC ==========
+    // ========== FEATURE: LOCAL PERSISTENCE + FIREBASE CLOUD SYNC ==========
     // Keeps user-generated study data on-device and optionally backs it up to
-    // the user's private Google Drive appDataFolder for cross-device restore.
+    // the user's private Firestore document for cross-device sync.
     (function () {
       const STORE_KEY = 'medmcq_user_state_v3';
-      const GOOGLE_CLIENT_KEY = 'medmcq_google_client_id';
-      const DRIVE_FILE_NAME = 'med-mcq-user-backup.json';
-      let tokenClient = null;
-      let accessToken = null;
-      let tokenPromise = null;
 
       function safeJson(v) {
         try { return JSON.parse(JSON.stringify(v)); } catch (e) { return null; }
@@ -7334,169 +7336,116 @@ function startAllSourcePractice(subject, topic) {
         }
       }
 
-      function loadGoogleScript() {
-        return new Promise((resolve, reject) => {
-          if (window.google && google.accounts && google.accounts.oauth2) return resolve();
-          const existing = document.querySelector('script[data-google-gis]');
-          if (existing) {
-            existing.addEventListener('load', () => resolve());
-            existing.addEventListener('error', reject);
-            return;
-          }
-          const sc = document.createElement('script');
-          sc.src = 'https://accounts.google.com/gsi/client';
-          sc.async = true; sc.defer = true; sc.dataset.googleGis = '1';
-          sc.onload = () => resolve();
-          sc.onerror = () => reject(new Error('Could not load Google sign-in service'));
-          document.head.appendChild(sc);
-        });
+
+      // ========== FIREBASE CLOUD SYNC ==========
+      const FIREBASE_CONFIG_KEY = 'medmcq_firebase_config_v1';
+      let firebaseReady = false;
+      let firebaseUser = null;
+      let cloudSyncBusy = false;
+
+      function readFirebaseConfig() {
+        try { return JSON.parse(localStorage.getItem(FIREBASE_CONFIG_KEY) || 'null'); } catch(e) { return null; }
       }
-
-      function clientId() {
-        return (localStorage.getItem(GOOGLE_CLIENT_KEY) || document.getElementById('google-client-id')?.value || '').trim();
+      function firebaseConfigLooksValid(c) { return !!(c && c.apiKey && c.authDomain && c.projectId && c.appId); }
+      function setCloudStatus(text) { const el=document.getElementById('firebase-sync-status'); if(el) el.textContent=text; }
+      function updateCloudUI() {
+        const auth=document.getElementById('firebase-auth-fields');
+        const actions=document.getElementById('firebase-connected-actions');
+        if(auth) auth.style.display=firebaseUser?'none':'block';
+        if(actions) actions.style.display=firebaseUser?'flex':'none';
+        if(firebaseUser) setCloudStatus('● Connected • '+(firebaseUser.email||'Account'));
       }
-
-      function savedGoogleEmail() { return localStorage.getItem('medmcq_google_email') || ''; }
-
-      function saveClientId() {
-        const id = (document.getElementById('google-client-id')?.value || '').trim();
-        if (!id) { showToast('Enter your Google OAuth Client ID'); return; }
-        localStorage.setItem(GOOGLE_CLIENT_KEY, id);
-        showToast('Google Client ID saved');
-        updateStatus();
-      }
-
-      function requestToken() {
-        if (accessToken) return Promise.resolve(accessToken);
-        if (tokenPromise) return tokenPromise;
-        tokenPromise = loadGoogleScript().then(() => new Promise((resolve, reject) => {
-          const id = clientId();
-          if (!id) throw new Error('Google OAuth Client ID is not configured');
-          if (!/\.apps\.googleusercontent\.com$/.test(id)) throw new Error('Invalid Google Client ID. Use the Web application Client ID ending in .apps.googleusercontent.com');
-          tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: id,
-            scope: 'openid email profile https://www.googleapis.com/auth/drive.appdata',
-            callback: (resp) => {
-              if (resp && resp.access_token) { accessToken = resp.access_token; resolve(accessToken); }
-              else reject(new Error((resp && resp.error_description) || 'Google authorization failed'));
-            }
+      function initFirebase() {
+        const cfg=readFirebaseConfig();
+        if(!firebaseConfigLooksValid(cfg) || typeof firebase==='undefined') { firebaseReady=false; setCloudStatus('Not configured • Add Firebase Web App config below'); return false; }
+        try {
+          if(!firebase.apps.length) firebase.initializeApp(cfg);
+          firebaseReady=true;
+          firebase.auth().onAuthStateChanged(async user=>{
+            firebaseUser=user||null; updateCloudUI();
+            if(user) { const email=document.getElementById('firebase-email'); if(email) email.value=user.email||''; await syncAfterLogin(); }
           });
-          tokenClient.requestAccessToken({ prompt: 'select_account' });
-        })).catch(e => { tokenPromise = null; throw e; });
-        return tokenPromise;
+          return true;
+        } catch(e) { firebaseReady=false; console.error('[MedMCQ] Firebase init',e); setCloudStatus('Firebase setup error • Check configuration'); return false; }
       }
-
-      async function api(url, options) {
-        const token = await requestToken();
-        const headers = Object.assign({}, (options && options.headers) || {}, { Authorization: 'Bearer ' + token });
-        const res = await fetch(url, Object.assign({}, options || {}, { headers }));
-        if (res.status === 401) {
-          accessToken = null;
-          tokenPromise = null;
-          throw new Error('Google authorization expired. Please connect again.');
-        }
-        if (!res.ok) {
-          let msg = '';
-          try { msg = (await res.json()).error?.message || ''; } catch (e) {}
-          throw new Error(msg || ('Google Drive error ' + res.status));
-        }
-        return res;
+      function saveConfig() {
+        try {
+          const raw=(document.getElementById('firebase-config')?.value||'').trim();
+          const c=JSON.parse(raw);
+          if(!firebaseConfigLooksValid(c)) throw new Error('Config is missing apiKey, authDomain, projectId or appId');
+          localStorage.setItem(FIREBASE_CONFIG_KEY,JSON.stringify(c));
+          showToast('Firebase configuration saved');
+          setTimeout(()=>location.reload(),250);
+        } catch(e) { showToast(e.message||'Invalid Firebase config JSON'); }
       }
-
-      async function getBackupFile() {
-        const q = encodeURIComponent("name='" + DRIVE_FILE_NAME + "' and trashed=false");
-        const res = await api('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=' + q + '&fields=files(id,name,modifiedTime)');
-        const data = await res.json();
-        return data.files && data.files[0] ? data.files[0] : null;
+      async function signIn() {
+        try {
+          if(!firebaseReady&&!initFirebase()) return;
+          const email=(document.getElementById('firebase-email')?.value||'').trim();
+          const pass=document.getElementById('firebase-password')?.value||'';
+          if(!email||!pass){showToast('Enter email and password');return;}
+          setCloudStatus('Signing in…');
+          await firebase.auth().signInWithEmailAndPassword(email,pass);
+          showToast('Cloud sync connected');
+        } catch(e) { console.error('[MedMCQ] Firebase sign in',e); showToast(e.message||'Sign in failed'); setCloudStatus('Sign in failed'); }
       }
-
-      async function backup(silent) {
+      async function createAccount() {
+        try {
+          if(!firebaseReady&&!initFirebase()) return;
+          const email=(document.getElementById('firebase-email')?.value||'').trim();
+          const pass=document.getElementById('firebase-password')?.value||'';
+          if(!email||pass.length<6){showToast('Enter an email and a password of at least 6 characters');return;}
+          setCloudStatus('Creating account…');
+          await firebase.auth().createUserWithEmailAndPassword(email,pass);
+          showToast('Account created • Cloud sync is on');
+        } catch(e) { console.error('[MedMCQ] Firebase create',e); showToast(e.message||'Account creation failed'); setCloudStatus('Account creation failed'); }
+      }
+      async function uploadCloud(silent=true) {
+        if(!firebaseReady||!firebaseUser||cloudSyncBusy)return false;
+        cloudSyncBusy=true;
         try {
           persistLocal(false);
-          const state = JSON.stringify(buildState());
-          const existing = await getBackupFile();
-          const metadata = existing ? { name: DRIVE_FILE_NAME } : { name: DRIVE_FILE_NAME, parents: ['appDataFolder'] };
-          const boundary = 'medmcq_' + Date.now();
-          const body = '--' + boundary + '\r\n' +
-            'Content-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(metadata) + '\r\n' +
-            '--' + boundary + '\r\n' +
-            'Content-Type: application/json\r\n\r\n' + state + '\r\n' +
-            '--' + boundary + '--';
-          const url = 'https://www.googleapis.com/upload/drive/v3/files' + (existing ? '/' + existing.id : '') + '?uploadType=multipart';
-          await api(url, {
-            method: existing ? 'PATCH' : 'POST',
-            headers: { 'Content-Type': 'multipart/related; boundary=' + boundary },
-            body
-          });
-          const status = document.getElementById('google-sync-status');
-          if (status) status.textContent = 'Connected • Last backup: ' + new Date().toLocaleString();
-          if (!silent) showToast('Backup completed to Google Drive');
+          const state=buildState();
+          await firebase.firestore().collection('users').doc(firebaseUser.uid).set({state:state,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+          setCloudStatus('● Synced • '+(firebaseUser.email||'Account')+' • '+new Date().toLocaleTimeString());
+          if(!silent) showToast('Cloud sync completed');
           return true;
-        } catch (e) {
-          console.error('[MedMCQ] Drive backup', e);
-          showToast(e.message || 'Backup failed');
-          return false;
-        }
+        } catch(e) { console.error('[MedMCQ] Firebase upload',e); setCloudStatus('Connected • Cloud sync failed'); if(!silent) showToast(e.message||'Cloud sync failed'); return false; }
+        finally { cloudSyncBusy=false; }
       }
-
-      async function restore() {
+      async function downloadCloud(showConfirm=true) {
+        if(!firebaseReady||!firebaseUser)return false;
         try {
-          const file = await getBackupFile();
-          if (!file) { showToast('No Med MCQ backup found in this Google account'); return false; }
-          const res = await api('https://www.googleapis.com/drive/v3/files/' + file.id + '?alt=media');
-          const st = await res.json();
-          if (!st || st.version !== 3) { showToast('Backup format is not supported'); return false; }
-          if (!confirm('Restore this Google Drive backup? Current device data will be replaced.')) return false;
-          localStorage.setItem(STORE_KEY, JSON.stringify(st));
-          restoreLocal();
-          syncUserProgressFromAttempts();
-          renderContinueCard();
-          renderBookmarks();
-          renderNotes();
-          renderSavedTests();
-          setDailyGoal(dailyTarget);
-          showToast('Backup restored successfully');
-          return true;
-        } catch (e) {
-          console.error('[MedMCQ] Drive restore', e);
-          showToast(e.message || 'Restore failed');
-          return false;
-        }
+          const snap=await firebase.firestore().collection('users').doc(firebaseUser.uid).get();
+          if(!snap.exists||!snap.data().state)return false;
+          const st=snap.data().state;
+          if(!st||st.version!==3){showToast('Cloud data format is not supported');return false;}
+          if(showConfirm&&!confirm('Load your cloud data on this device? Current device data will be replaced.'))return false;
+          localStorage.setItem(STORE_KEY,JSON.stringify(st)); restoreLocal(); syncUserProgressFromAttempts(); renderContinueCard(); renderBookmarks(); renderNotes(); renderSavedTests(); setDailyGoal(dailyTarget); try{renderDailyQuestionUI();}catch(e){}
+          setCloudStatus('● Synced • '+(firebaseUser.email||'Account')); return true;
+        } catch(e){console.error('[MedMCQ] Firebase download',e);showToast(e.message||'Cloud restore failed');return false;}
       }
-
-      async function connect() {
-        try {
-          if (!clientId()) { showToast('Open Google setup and add your OAuth Client ID first'); return; }
-          await requestToken();
-          let email = '';
-          try {
-            const r = await api('https://openidconnect.googleapis.com/v1/userinfo');
-            const u = await r.json(); email = u.email || '';
-            if(email) localStorage.setItem('medmcq_google_email', email);
-          } catch (e) {}
-          const status = document.getElementById('google-sync-status');
-          if (status) status.textContent = email ? 'Connected: ' + email : 'Connected to Google';
-          showToast('Google account connected');
-          await backup(true);
-        } catch (e) {
-          console.error('[MedMCQ] Google connect', e);
-          const status = document.getElementById('google-sync-status');
-          if (status) status.textContent = 'Connection failed • ' + (e.message || 'Check Google setup / Test user');
-          showToast(e.message || 'Google connection failed');
-        }
+      async function syncAfterLogin() {
+        if(!firebaseReady||!firebaseUser)return;
+        const snap=await firebase.firestore().collection('users').doc(firebaseUser.uid).get().catch(()=>null);
+        const hasLocal=!!localStorage.getItem(STORE_KEY);
+        if(snap&&snap.exists&&snap.data().state) {
+          const cloud=snap.data().state;
+          if(!hasLocal) {
+            await downloadCloud(false);
+          } else {
+            const local=buildState();
+            const ct=Date.parse(cloud.savedAt||'')||0, lt=Date.parse(local.savedAt||'')||0;
+            if(ct>lt) {
+              if(confirm('Cloud data is newer. Load it on this device?')) await downloadCloud(false);
+              else await uploadCloud(true);
+            } else await uploadCloud(true);
+          }
+        } else await uploadCloud(true);
+        updateCloudUI();
       }
-
-      function updateStatus() {
-        const input = document.getElementById('google-client-id');
-        const saved = localStorage.getItem(GOOGLE_CLIENT_KEY) || '';
-        if (input && saved) input.value = saved;
-        const status = document.getElementById('google-sync-status');
-        if (status && !accessToken) {
-          const email = savedGoogleEmail();
-          status.textContent = saved ? (email ? 'Google ready • '+email+' • Tap Connect to authorize' : 'Google ready • Not connected') : 'Not connected';
-        }
-      }
-
+      async function syncNow(){ if(!firebaseUser){showToast('Sign in to Cloud Sync first');return;} await uploadCloud(false); }
+      async function signOut(){ try{await firebase.auth().signOut();showToast('Signed out • local data remains on this device');}catch(e){showToast(e.message||'Sign out failed');} }
       function exportBackup() {
         try {
           persistLocal(false);
@@ -7529,97 +7478,23 @@ function startAllSourcePractice(subject, topic) {
         finally { if (input) input.value=''; }
       }
 
-      window.MedMCQGoogleSync = { connect, backup: () => backup(false), restore, saveClientId };
-      window.MedMCQLocal = { persist: persistLocal, restore: restoreLocal, buildState, exportBackup, importBackup };
 
-      // Restore local data before the rest of the dashboard is rendered.
+      window.MedMCQCloud={saveConfig,signIn,createAccount,syncNow,signOut};
+      window.MedMCQLocal={persist:persistLocal,restore:restoreLocal,buildState,exportBackup,importBackup};
       restoreLocal();
-      updateStatus();
+      const savedCfg=readFirebaseConfig();
+      const cfgBox=document.getElementById('firebase-config');
+      if(cfgBox&&savedCfg) cfgBox.value=JSON.stringify(savedCfg,null,2);
       syncUserProgressFromAttempts();
       setDailyGoal(dailyTarget);
-      try { if (typeof renderDailyQuestionUI === 'function') renderDailyQuestionUI(); } catch(e) {}
-
-      // Autosave means changes survive app/browser restarts even if a feature
-      // does not explicitly call persistLocalData().
-      window.persistMedMcqState = function () { persistLocal(false); };
-      setInterval(() => persistLocal(false), 2000);
-      // If Google is connected, periodically push the latest state so the
-      // second phone can restore recent changes without manual exporting.
-      setInterval(() => { if (accessToken) backup(true); }, 30000);
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') persistLocal(false);
-        if (document.visibilityState === 'visible' && accessToken) backup(true);
-      });
-      window.addEventListener('online', () => { if (accessToken) backup(true); });
-      window.addEventListener('beforeunload', () => persistLocal(false));
-
-      // Fix Home → Today's Progress with a dedicated safe entry point.
-      window.openTodayProgress = function () {
-        try { goTo('progress'); } catch (e) {
-          console.error('[MedMCQ] openTodayProgress', e);
-          const page = document.getElementById('page-progress');
-          document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-          if (page) page.classList.add('active');
-          try { renderProgress(); } catch (e2) {}
-          window.scrollTo(0, 0);
-        }
-      };
-
-      // Update today's dashboard numbers from the real attempt map.
-      window.updateTodayProgress = function () {
-        try {
-          const key = getTodayKey();
-          const attempts = Object.values(questionAttemptMap || {}).filter(a => {
-            const d = new Date(a.at || 0);
-            const k = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-            return k === key;
-          });
-          const q = attempts.length;
-          const c = attempts.filter(a => a.correct).length;
-          const acc = q ? Math.round(c / q * 100) : null;
-          const elQ = document.getElementById('today-qs');
-          const elA = document.getElementById('today-acc');
-          const elS = document.getElementById('today-streak');
-          const fill = document.getElementById('daily-fill');
-          const txt = document.getElementById('daily-goal-text');
-          if (elQ) elQ.textContent = q;
-          if (elA) elA.textContent = acc == null ? '—' : acc + '%';
-          if (fill) fill.style.width = Math.min(100, Math.round(q / Math.max(1,dailyTarget) * 100)) + '%';
-          if (txt) txt.textContent = q + ' / ' + dailyTarget;
-          if (elS) {
-            let streak = 0, d = new Date();
-            while (true) {
-              const k = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-              const has = Object.values(questionAttemptMap || {}).some(a => {
-                const x = new Date(a.at || 0);
-                return x.getFullYear() + '-' + String(x.getMonth()+1).padStart(2,'0') + '-' + String(x.getDate()).padStart(2,'0') === k;
-              });
-              if (!has) break;
-              streak++; d.setDate(d.getDate()-1);
-            }
-            elS.textContent = streak;
-          }
-        } catch (e) { console.warn('[MedMCQ] today progress update', e); }
-      };
-      updateTodayProgress();
-
-      // Patch the existing progress writer so the new persistence is immediate.
-      const originalRecordAttempt = window.recordQuestionAttempt;
-      if (typeof originalRecordAttempt === 'function') {
-        window.recordQuestionAttempt = function () {
-          const r = originalRecordAttempt.apply(this, arguments);
-          try { updateTodayProgress(); persistLocal(false); } catch (e) {}
-          return r;
-        };
-      }
-      const originalGoal = window.setDailyGoal;
-      if (typeof originalGoal === 'function') {
-        window.setDailyGoal = function () {
-          const r = originalGoal.apply(this, arguments);
-          try { persistLocal(false); updateTodayProgress(); } catch (e) {}
-          return r;
-        };
-      }
+      try{if(typeof renderDailyQuestionUI==='function')renderDailyQuestionUI();}catch(e){}
+      window.persistMedMcqState=function(){persistLocal(false);};
+      setInterval(()=>persistLocal(false),2000);
+      setInterval(()=>{if(firebaseUser)uploadCloud(true);},15000);
+      document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){persistLocal(false);if(firebaseUser)uploadCloud(true);}});
+      window.addEventListener('online',()=>{if(firebaseUser)uploadCloud(true);});
+      window.addEventListener('beforeunload',()=>persistLocal(false));
+      initFirebase();
     })();
   </script>
 
