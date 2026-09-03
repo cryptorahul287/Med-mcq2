@@ -181,7 +181,7 @@
 
     /* Edit / GPT modals */
     .modal-overlay {
-      position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 160;
+      position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 9999;
       display: none; align-items: center; justify-content: center; padding: 16px;
     }
     .modal-overlay.open { display: flex; }
@@ -1589,7 +1589,7 @@
         <div class="profile-avatar" id="profile-avatar-display">M</div>
         <div class="profile-name" id="profile-name-display">Mehedi Hasan</div>
         <div class="profile-email" id="profile-email-display">Not signed in</div>
-        <button class="filter-chip" type="button" style="margin-top:10px;" onclick="openProfileEditModal()">✏️ Edit Profile</button>
+        <button class="filter-chip" type="button" style="margin-top:10px;" onclick="window.openProfileEditModal && window.openProfileEditModal()">✏️ Edit Profile</button>
       </div>
 
       <div class="profile-stats">
@@ -1602,7 +1602,7 @@
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;">
           <h3 style="font-size:15px;font-weight:600;">Account Details</h3>
-          <button class="filter-chip" type="button" onclick="openProfileEditModal()">Edit</button>
+          <button class="filter-chip" type="button" onclick="window.openProfileEditModal && window.openProfileEditModal()">Edit</button>
         </div>
         <div class="profile-row"><span class="label">Target Exam</span><span class="value" id="profile-target-exam">NEET-PG</span></div>
         <div class="profile-row"><span class="label">Target Year</span><span class="value" id="profile-target-year">2027</span></div>
@@ -1663,7 +1663,7 @@
           <div class="profile-avatar" id="profile-edit-avatar" style="width:58px;height:58px;font-size:24px;margin:0;">M</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;">
             <button class="filter-chip" type="button" onclick="document.getElementById('profile-photo-input').click()">📷 Choose Photo</button>
-            <button class="filter-chip" type="button" onclick="removeProfilePhoto()">Remove</button>
+            <button class="filter-chip" type="button" onclick="window.removeProfilePhoto && window.removeProfilePhoto()">Remove</button>
           </div>
         </div>
         <input id="profile-photo-input" type="file" accept="image/*" style="display:none;" onchange="handleProfilePhoto(this)" />
@@ -1671,7 +1671,7 @@
         <label>Target Exam</label><input id="profile-exam-input" type="text" maxlength="40" placeholder="NEET-PG" />
         <label>Target Year</label><input id="profile-year-input" type="number" min="2020" max="2100" placeholder="2027" />
         <label>Preferred Subjects</label><input id="profile-subjects-input" type="text" maxlength="250" placeholder="Medicine, Surgery, Pathology" />
-        <div class="modal-actions"><button class="filter-chip" type="button" onclick="closeProfileEditModal()">Cancel</button><button class="btn-primary" type="button" style="flex:1;" onclick="saveProfileDetails()">Save Profile</button></div>
+        <div class="modal-actions"><button class="filter-chip" type="button" onclick="window.closeProfileEditModal && window.closeProfileEditModal()">Cancel</button><button class="btn-primary" type="button" style="flex:1;" onclick="window.saveProfileDetails && window.saveProfileDetails()">Save Profile</button></div>
       </div>
     </div>
 
@@ -2500,11 +2500,28 @@
 
     function getDateKeyFromMs(ms) { const d=new Date(ms); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
     function getTodayProgressStats() {
-      const today=getTodayKey(); let attempted=0, correct=0; const activeDates=new Set();
-      Object.values(questionAttemptMap||{}).forEach(a=>{ if(!a||!a.at) return; const key=getDateKeyFromMs(a.at); activeDates.add(key); if(key===today){ attempted++; if(a.correct) correct++; } });
-      let streak=0; let cursor=new Date(); cursor.setHours(0,0,0,0);
-      // Count consecutive calendar days ending today; if no activity today, streak is 0.
-      if(attempted>0){ while(true){ const k=getDateKeyFromMs(cursor.getTime()); if(!activeDates.has(k)) break; streak++; cursor.setDate(cursor.getDate()-1); } }
+      const now=new Date();
+      const today=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+      let attempted=0, correct=0; const activeDates=new Set();
+      Object.values(questionAttemptMap||{}).forEach(a=>{
+        if(!a) return;
+        const raw=typeof a.at==='number' ? a.at : Date.parse(a.at||'');
+        if(!Number.isFinite(raw)||raw<=0) return;
+        const key=getDateKeyFromMs(raw);
+        activeDates.add(key);
+        if(key===today){ attempted++; if(a.correct===true) correct++; }
+      });
+      let streak=0;
+      const cursor=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+      // Streak is consecutive calendar days ending today; no activity today means 0.
+      if(attempted>0){
+        while(true){
+          const k=getDateKeyFromMs(cursor.getTime());
+          if(!activeDates.has(k)) break;
+          streak++;
+          cursor.setDate(cursor.getDate()-1);
+        }
+      }
       return { attempted, correct, accuracy: attempted ? Math.round(correct/attempted*100) : null, streak };
     }
     function formatStudyTime(sec) {
@@ -5715,6 +5732,13 @@ function startAllSourcePractice(subject, topic) {
     }
 
 
+    function openTodayProgress(){
+      progressRange=7;
+      const el=document.getElementById('chart-range'); if(el) el.value='7';
+      goTo('progress');
+      setTimeout(()=>{ const p=document.getElementById('progress-content'); if(p) p.scrollIntoView({behavior:'smooth',block:'start'}); },60);
+    }
+
     function renderProgress() {
       const empty = document.getElementById('progress-empty');
       const contentEl = document.getElementById('progress-content');
@@ -5746,7 +5770,9 @@ function startAllSourcePractice(subject, topic) {
     }
 
     function renderProgressChart() {
-      const range = document.getElementById('chart-range')?.value || '7';
+      const rangeEl=document.getElementById('chart-range');
+      if(rangeEl && !['7','14','30','all'].includes(rangeEl.value)) rangeEl.value='7';
+      const range = rangeEl?.value || '7';
       let days = [...userProgress.daily];
       if (range !== 'all') {
         const n = parseInt(range, 10);
@@ -5896,10 +5922,18 @@ function startAllSourcePractice(subject, topic) {
     function openHelpModal(){document.getElementById('help-modal')?.classList.add('open');}
     function closeHelpModal(){document.getElementById('help-modal')?.classList.remove('open');}
     function openProfileEditModal(){
+      const modal=document.getElementById('profile-edit-modal');
+      if(!modal){ showToast('Profile editor is unavailable'); return; }
       const n=document.getElementById('profile-name-input'),e=document.getElementById('profile-exam-input'),y=document.getElementById('profile-year-input'),s=document.getElementById('profile-subjects-input');
-      if(n)n.value=profileName||''; if(e)e.value=targetExam||'NEET-PG'; if(y)y.value=targetYear||''; if(s)s.value=preferredSubjects==='All'?'':preferredSubjects; updateProfileUI(); document.getElementById('profile-edit-modal')?.classList.add('open');
+      if(n)n.value=profileName||'';
+      if(e)e.value=targetExam||'NEET-PG';
+      if(y)y.value=targetYear||'';
+      if(s)s.value=preferredSubjects==='All'?'':preferredSubjects;
+      modal.classList.add('open');
+      modal.style.display='flex';
+      setTimeout(()=>{ if(n){ try{n.focus();n.select();}catch(_){} } },30);
     }
-    function closeProfileEditModal(){document.getElementById('profile-edit-modal')?.classList.remove('open');}
+    function closeProfileEditModal(){const m=document.getElementById('profile-edit-modal'); if(m){m.classList.remove('open'); m.style.display='';}}
     function handleProfilePhoto(input){
       const f=input&&input.files&&input.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ const img=new Image(); img.onload=()=>{ const c=document.createElement('canvas'),max=240,scale=Math.min(1,max/Math.max(img.width,img.height)); c.width=Math.max(1,Math.round(img.width*scale)); c.height=Math.max(1,Math.round(img.height*scale)); const ctx=c.getContext('2d');ctx.drawImage(img,0,0,c.width,c.height);profilePhoto=c.toDataURL('image/jpeg',.72);updateProfileUI();};img.src=r.result;};r.readAsDataURL(f);
     }
@@ -5919,6 +5953,7 @@ function startAllSourcePractice(subject, topic) {
       try { window.dispatchEvent(new Event('medmcq-state-changed')); } catch(_) {}
       showToast('Profile updated and saved');
     }
+    window.openTodayProgress=openTodayProgress;
     window.openProfileEditModal=openProfileEditModal;
     window.closeProfileEditModal=closeProfileEditModal;
     window.handleProfilePhoto=handleProfilePhoto;
@@ -7466,6 +7501,7 @@ function startAllSourcePractice(subject, topic) {
       let lastCloudSavedAt = 0;
       let lastUploadedFingerprint = null;
       let suppressCloudUpload = false;
+      let authListenerStarted = false;
 
       function safeJson(v) { try { return JSON.parse(JSON.stringify(v)); } catch (e) { return null; } }
       function getTodayKey() {
@@ -7684,12 +7720,30 @@ function startAllSourcePractice(subject, topic) {
         try {
           if(!firebase.apps.length) firebase.initializeApp(cfg);
           firebaseReady=true;
-          firebase.auth().onAuthStateChanged(async user=>{
-            firebaseUser=user||null;
-            if(!user) { if(cloudUnsubscribe){ try { cloudUnsubscribe(); } catch(e) {} cloudUnsubscribe=null; } if(cloudUploadTimer){ clearInterval(cloudUploadTimer); cloudUploadTimer=null; } lastUploadedFingerprint=null; }
-            updateCloudUI();
-            if(user) { const email=document.getElementById('firebase-email'); if(email) email.value=user.email||''; await syncAfterLogin(); }
-          });
+          const auth=firebase.auth();
+          // Explicitly keep the Firebase session in browser/PWA local persistence.
+          // This prevents a normal reload, tab close, or PWA restart from signing the user out.
+          if(!authListenerStarted){
+            authListenerStarted=true;
+            auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+              .catch(e=>console.warn('[MedMCQ] Auth persistence setup',e))
+              .finally(()=>{
+                auth.onAuthStateChanged(async user=>{
+                  firebaseUser=user||null;
+                  if(!user) {
+                    if(cloudUnsubscribe){ try { cloudUnsubscribe(); } catch(e) {} cloudUnsubscribe=null; }
+                    if(cloudUploadTimer){ clearInterval(cloudUploadTimer); cloudUploadTimer=null; }
+                    lastUploadedFingerprint=null;
+                  }
+                  updateCloudUI();
+                  updateProfileUI();
+                  if(user) {
+                    const email=document.getElementById('firebase-email'); if(email) email.value=user.email||'';
+                    try { await syncAfterLogin(); } catch(e) { console.error('[MedMCQ] login sync',e); setCloudStatus('⚠ Signed in • Sync needs attention'); }
+                  }
+                });
+              });
+          }
           return true;
         } catch(e) { firebaseReady=false; console.error('[MedMCQ] Firebase init',e); setCloudStatus('Firebase setup error • Check configuration'); return false; }
       }
@@ -7756,9 +7810,9 @@ function startAllSourcePractice(subject, topic) {
       restoreLocal(); applyTheme(); document.documentElement.classList.toggle('reduced-motion',reducedMotion); updateProfileUI(); const savedCfg=readFirebaseConfig(); const cfgBox=document.getElementById('firebase-config'); if(cfgBox&&savedCfg) cfgBox.value=JSON.stringify(savedCfg,null,2);
       syncUserProgressFromAttempts(); setDailyGoal(dailyTarget); try{if(typeof renderDailyQuestionUI==='function')renderDailyQuestionUI();}catch(e){}
       window.persistMedMcqState=function(){persistLocal(false);};
-      setInterval(()=>persistLocal(false),2000); setInterval(()=>{if(firebaseUser && autoSyncEnabled)uploadCloud(true);},8000);
-      document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){persistLocal(false);if(firebaseUser && autoSyncEnabled)uploadCloud(true);}});
-      window.addEventListener('online',()=>{if(firebaseUser && autoSyncEnabled)uploadCloud(true);}); window.addEventListener('beforeunload',()=>persistLocal(false)); initFirebase();
+      setInterval(()=>persistLocal(false),2000);
+      window.addEventListener('beforeunload',()=>persistLocal(false));
+      initFirebase();
     })();
 
     // ===== PWA: Manifest + Service Worker =====
